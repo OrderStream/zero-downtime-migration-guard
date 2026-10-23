@@ -59,6 +59,18 @@ zero-downtime-migration-guard license
 
 ---
 
+---
+
+## 💳 Enterprise Pricing Matrix & Licensing
+
+| Tier | Price | Repositories | Core Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Community Free** | **** | Unlimited | Standalone CLI runner and single-repo GitHub Action |
+| **Starter Suite** | ** / mo** | Up to 10 Repos | Automated CI PR gates, 500 CI runs/mo, standard email support |
+| **Team Platform** | **,499 / mo** | Up to 50 Repos | Full 10-tool OrderStream suite, flaky test quarantine deterministic replay, zero-downtime shadow DB migration guard, 24/7 telemetry alarms |
+| **Enterprise Platform** | **,999 / mo** | Unlimited | Multi-repo speculative merge engine, zero-downtime migration orchestrator, WASM sandbox gate, dedicated 24/7 cloud keeper, custom SLA |
+| **M&A IP & Security Audit** | **,000 one-time** | Whole Organization | Comprehensive copyleft AST fuzzy fingerprint audit, snippet license sheriff certification, formal invariant verification, and executive forensic IP Cleanliness Certificate |
+
 ## 💰 Direct Web3 Wallet Monetization & Polar Integration
 
 Support this project or purchase enterprise ephemeral container sandbox runners with **0 platform fees**:
