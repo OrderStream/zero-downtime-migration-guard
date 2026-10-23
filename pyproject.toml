@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zero-downtime-migration-guard"
+version = "1.0.0"
+description = "Ephemeral database migration test harness checking table locks and backward rollback safety before production schema changes."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "OrderStream", email = "orderstream@users.noreply.github.com" }]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+]
+dependencies = []
+
+[project.scripts]
+zero-downtime-migration-guard = "zero_downtime_migration_guard.cli:main"
