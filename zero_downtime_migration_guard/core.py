@@ -22,13 +22,25 @@ class MigrationLockAnalyzer:
     @staticmethod
     def analyze_sql(file_path: str, content: str) -> List[LockRisk]:
         risks: List[LockRisk] = []
-        lines = content.splitlines()
-
-        for idx, line in enumerate(lines, 1):
+        
+        # Assemble multi-line SQL statements terminated by semicolon
+        statements: List[Tuple[int, str]] = []
+        curr_tokens: List[str] = []
+        curr_line = 1
+        for idx, line in enumerate(content.splitlines(), 1):
             clean = line.strip()
             if not clean or clean.startswith("--"):
                 continue
+            if not curr_tokens:
+                curr_line = idx
+            curr_tokens.append(clean)
+            if clean.endswith(";"):
+                statements.append((curr_line, " ".join(curr_tokens)))
+                curr_tokens = []
+        if curr_tokens:
+            statements.append((curr_line, " ".join(curr_tokens)))
 
+        for idx, clean in statements:
             # 1. CREATE INDEX without CONCURRENTLY
             if re.search(r"\bCREATE\s+(?:UNIQUE\s+)?INDEX\b", clean, re.IGNORECASE) and not re.search(r"\bCONCURRENTLY\b", clean, re.IGNORECASE):
                 risks.append(LockRisk(
@@ -99,15 +111,26 @@ class MigrationLockAnalyzer:
         except SyntaxError:
             return risks
 
+        has_upgrade = False
         has_downgrade = False
         downgrade_is_empty = False
 
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
-                if node.name == "downgrade":
+                if node.name == "upgrade":
+                    has_upgrade = True
+                elif node.name == "downgrade":
                     has_downgrade = True
-                    # Check if body is just pass or docstring
-                    if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
+                    # Check if body is empty: pass, docstring, or ellipsis
+                    meaningful_stmts = []
+                    for stmt in node.body:
+                        if isinstance(stmt, ast.Pass):
+                            continue
+                        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
+                            # Docstring or ellipsis
+                            continue
+                        meaningful_stmts.append(stmt)
+                    if not meaningful_stmts:
                         downgrade_is_empty = True
 
             elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
@@ -124,8 +147,37 @@ class MigrationLockAnalyzer:
                             risk_description="op.create_index() missing postgresql_concurrently=True holds AccessExclusiveLock.",
                             safe_alternative="Add postgresql_concurrently=True and set transaction_per_migration = False."
                         ))
+                # op.add_column with nullable=False without server_default
+                elif node.func.attr == "add_column":
+                    has_not_null = False
+                    has_default = any(kw.arg in {"server_default", "default"} for kw in node.keywords)
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.keyword) and sub.arg == "nullable" and isinstance(sub.value, ast.Constant) and sub.value.value is False:
+                            has_not_null = True
+                        if isinstance(sub, ast.keyword) and sub.arg in {"server_default", "default"}:
+                            has_default = True
+                    if has_not_null and not has_default:
+                        risks.append(LockRisk(
+                            statement=f"op.add_column() at line {node.lineno}",
+                            lock_type="ACCESS_EXCLUSIVE_LOCK",
+                            severity="CRITICAL",
+                            file_path=file_path,
+                            line=node.lineno,
+                            risk_description="op.add_column() with nullable=False without server_default holds AccessExclusiveLock.",
+                            safe_alternative="Add column as nullable, backfill asynchronously, then add NOT NULL constraint."
+                        ))
 
-        if has_downgrade and downgrade_is_empty:
+        if has_upgrade and not has_downgrade:
+            risks.append(LockRisk(
+                statement="missing downgrade()",
+                lock_type="ROLLBACK_SAFETY_VIOLATION",
+                severity="HIGH",
+                file_path=file_path,
+                line=1,
+                risk_description="Migration defines upgrade() but completely lacks a downgrade() function, preventing deployment rollback.",
+                safe_alternative="Implement reverse migration operations in downgrade() to guarantee rollback safety."
+            ))
+        elif has_downgrade and downgrade_is_empty:
             risks.append(LockRisk(
                 statement="def downgrade(): pass",
                 lock_type="ROLLBACK_SAFETY_VIOLATION",

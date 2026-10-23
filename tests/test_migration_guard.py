@@ -62,6 +62,36 @@ def downgrade():
     assert "ACCESS_EXCLUSIVE_LOCK" in types
     assert "ROLLBACK_SAFETY_VIOLATION" in types
 
+def test_multiline_sql_and_alembic_edge_cases(tmp_path):
+    # 1. Multi-line SQL statement
+    multiline_sql = """
+    ALTER TABLE users
+        ADD COLUMN status VARCHAR(25) NOT NULL;
+    """
+    f = str(tmp_path / "multi.sql")
+    risks = MigrationLockAnalyzer.analyze_sql(f, multiline_sql)
+    assert len(risks) == 1
+    assert risks[0].lock_type == "ACCESS_EXCLUSIVE_LOCK"
+
+    # 2. Alembic with docstring downgrade and op.add_column hazard
+    alembic_doc = """
+from alembic import op
+import sqlalchemy as sa
+
+def upgrade():
+    op.add_column('accounts', sa.Column('balance', sa.Numeric(), nullable=False))
+
+def downgrade():
+    \"\"\"Revert the migration.\"\"\"
+    pass
+"""
+    f2 = str(tmp_path / "mig_doc.py")
+    risks2 = MigrationLockAnalyzer.analyze_alembic_python(f2, alembic_doc)
+    types2 = [r.lock_type for r in risks2]
+    assert "ACCESS_EXCLUSIVE_LOCK" in types2
+    assert "ROLLBACK_SAFETY_VIOLATION" in types2
+
+
 def test_cli_execution(tmp_path):
     safe_sql = tmp_path / "safe.sql"
     safe_sql.write_text("CREATE INDEX CONCURRENTLY idx_test ON test(id);\n", encoding="utf-8")
