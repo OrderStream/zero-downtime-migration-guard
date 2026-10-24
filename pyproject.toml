@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Ephemeral database migration test harness checking table locks and backward rollback safety before production schema changes."
 readme = "README.md"
 requires-python = ">=3.9"
-authors = [{ name = "OrderStream", email = "hashdecode77@gmail.com" }]
+authors = [{ name = "OrderStream", email = "healthdecoded77@gmail.com" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
